@@ -1,0 +1,155 @@
+DETALLES COMPLETOS DEL PROYECTO DE RESTAURACIÓN DE IMÁGENES
+==========================================================
+
+Este documento detalla todos los componentes, teorías, algoritmos y tecnologías implementadas en el proyecto final para la asignatura de Teoría de la Información y Sistemas de Comunicación.
+
+1. OBJETIVO DEL PROYECTO
+------------------------
+Desarrollar una plataforma de software integral para simular la degradación de imágenes digitales y evaluar la eficacia de múltiples técnicas de restauración (espaciales, espectrales y basadas en IA) en la recuperación de información visual.
+
+2. MARCO TEÓRICO Y CONCEPTOS CLAVE
+----------------------------------
+*   **Teoría de la Información:**
+    *   **Ruido como Entropía:** El ruido se modela como una fuente de incertidumbre que aumenta la entropía condicional de la imagen recibida dado el mensaje original.
+    *   **Relación Señal-Ruido (SNR):** Medida fundamental de la calidad de la señal. El objetivo de la restauración es maximizar la SNR.
+    *   **Redundancia:** Las imágenes naturales tienen alta redundancia (píxeles vecinos son similares). Los algoritmos de restauración explotan esta redundancia para distinguir la señal (estructurada) del ruido (aleatorio).
+
+*   **Procesamiento de Señales:**
+    *   **Modelo de Degradación:** g(x,y) = f(x,y) * h(x,y) + n(x,y), donde 'g' es la imagen degradada, 'f' la original, 'h' la función de transferencia (desenfoque) y 'n' el ruido.
+    *   **Dominio de la Frecuencia (Fourier):** Transformación de la imagen a una representación de frecuencias espaciales. El ruido periódico se manifiesta como picos de energía concentrada, mientras que el ruido aleatorio se distribuye en altas frecuencias.
+
+3. TIPOS DE DEGRADACIÓN IMPLEMENTADOS (Módulo: src/noise.py)
+------------------------------------------------------------
+El sistema permite inyectar controladamente los siguientes tipos de distorsión:
+
+A. RUIDO ADITIVO
+   1. **Ruido Gaussiano (Gaussian Noise):**
+      *   *Descripción:* Variaciones aleatorias de intensidad siguiendo una distribución Normal (campana de Gauss).
+      *   *Causa Real:* Ruido térmico en sensores, baja iluminación.
+      *   *Efecto:* "Grano" generalizado en toda la imagen.
+   
+   2. **Ruido Sal y Pimienta (Salt & Pepper):**
+      *   *Descripción:* Píxeles aleatorios que toman valores mínimos (negro/pimienta) o máximos (blanco/sal).
+      *   *Causa Real:* Errores de transmisión de bits, fallos en celdas de memoria, convertidores A/D defectuosos.
+      *   *Efecto:* Puntos blancos y negros dispersos.
+
+   3. **Ruido Speckle (Moteado):**
+      *   *Descripción:* Ruido multiplicativo. La intensidad del ruido es proporcional a la intensidad de la señal.
+      *   *Causa Real:* Imágenes de radar (SAR), ultrasonido médico.
+      *   *Efecto:* Textura granular dependiente del brillo.
+
+   4. **Ruido Periódico (Periodic Noise):**
+      *   *Descripción:* Señal sinusoidal superpuesta a la imagen.
+      *   *Causa Real:* Interferencia electromagnética (red eléctrica de 60Hz), vibración mecánica del sensor.
+      *   *Efecto:* Rayas o patrones repetitivos sobre la imagen.
+
+B. DEGRADACIÓN ESTRUCTURAL
+   5. **Desenfoque Gaussiano (Gaussian Blur):**
+      *   *Descripción:* Convolución de la imagen con un kernel Gaussiano (filtro paso-bajo).
+      *   *Causa Real:* Lente fuera de foco, movimiento de la cámara, dispersión atmosférica.
+      *   *Efecto:* Pérdida de nitidez y detalles finos.
+
+   6. **Pixelación (Downsampling):**
+      *   *Descripción:* Reducción de la resolución espacial y posterior re-escalado.
+      *   *Causa Real:* Compresión excesiva, zoom digital, sensores de baja resolución.
+      *   *Efecto:* Bloques visibles ("dientes de sierra"), pérdida de definición.
+
+4. MÉTODOS DE RESTAURACIÓN IMPLEMENTADOS
+----------------------------------------
+
+A. FILTRADO EN EL DOMINIO DE LA FRECUENCIA (Módulo: src/fourier.py)
+   *Uso principal:* Eliminación de ruido periódico y patrones globales.
+   
+   1. **Transformada Rápida de Fourier (FFT):** Algoritmo base para pasar al dominio espectral.
+   2. **Filtro Pasa-Bajos Ideal:** Corta frecuencias altas. Causa "ringing" (anillos).
+   3. **Filtro Butterworth:** Pasa-bajos con transición suave. Reduce el ringing.
+   4. **Filtro Notch (Rechaza Banda):**
+      *   *Funcionamiento:* Atenúa frecuencias específicas seleccionadas manualmente.
+      *   *Aplicación:* La MEJOR solución para Ruido Periódico. Elimina la interferencia sin tocar el resto de la imagen.
+   5. **Deconvolución Wiener (Espectral):**
+      *   *Funcionamiento:* Inversión del desenfoque considerando la relación señal-ruido para no amplificar el ruido.
+      *   *Aplicación:* Recuperación de imágenes desenfocadas (Deblurring).
+
+B. FILTRADO ESPACIAL (Módulo: src/spatial.py)
+   *Uso principal:* Reducción de ruido aleatorio (Gaussiano, S&P).
+
+   1. **Filtro Gaussiano:**
+      *   *Tipo:* Lineal.
+      *   *Pros:* Rápido, elimina ruido suave.
+      *   *Contras:* Borra los bordes y detalles finos.
+
+   2. **Filtro de Mediana:**
+      *   *Tipo:* No lineal (Estadístico).
+      *   *Funcionamiento:* Reemplaza el píxel por la mediana de sus vecinos.
+      *   *Aplicación:* La MEJOR solución para Ruido Sal y Pimienta. Elimina los puntos sin borrar bordes.
+
+   3. **Filtro de Wiener (Espacial):**
+      *   *Tipo:* Estadístico adaptativo.
+      *   *Funcionamiento:* Minimiza el error cuadrático medio localmente.
+      *   *Aplicación:* Buen compromiso para ruido Gaussiano moderado.
+
+   4. **Filtro Bilateral:**
+      *   *Tipo:* No lineal, preservador de bordes.
+      *   *Funcionamiento:* Promedia píxeles que son cercanos espacialmente Y similares en intensidad.
+      *   *Aplicación:* Excelente para ruido Gaussiano, manteniendo los bordes nítidos (efecto "piel de porcelana").
+
+   5. **Non-Local Means (NLM):**
+      *   *Tipo:* No local.
+      *   *Funcionamiento:* Busca parches similares en toda la imagen (o gran vecindad) y los promedia. Explota la auto-similitud.
+      *   *Aplicación:* Estado del arte en filtros clásicos. Recupera texturas que otros filtros borran.
+      *   *Variantes:* Implementación lenta (Scikit-image) y rápida (OpenCV).
+
+   6. **Wavelet Denoising (BayesShrink):**
+      *   *Tipo:* Multirresolución.
+      *   *Funcionamiento:* Umbralización de coeficientes en el dominio de la Wavelet.
+      *   *Aplicación:* Bueno para preservar características a diferentes escalas.
+
+   7. **Variación Total (TV - Chambolle):**
+      *   *Tipo:* Optimización.
+      *   *Funcionamiento:* Minimiza la variación total de la imagen (suavidad) sujeto a restricciones de fidelidad.
+      *   *Aplicación:* Elimina ruido manteniendo bordes muy duros (efecto "cartoon").
+
+   8. **Richardson-Lucy:**
+      *   *Tipo:* Iterativo, Bayesiano.
+      *   *Aplicación:* Deconvolución (Deblurring) cuando se conoce la PSF aproximada.
+
+C. MÉTODOS AVANZADOS E INTELIGENCIA ARTIFICIAL
+   1. **Super Resolución (Lanczos + Sharpening):**
+      *   *Técnica:* Upscaling con interpolación Lanczos de alta calidad seguido de máscara de enfoque.
+      *   *Aplicación:* Restauración de imágenes pixeladas o de baja resolución.
+
+   2. **DnCNN (Denoising Convolutional Neural Network):**
+      *   *Tipo:* Deep Learning (Aprendizaje Profundo).
+      *   *Arquitectura:* Red Residual. Aprende a predecir el ruido y restarlo.
+      *   *Modelo:* Se usa un modelo ONNX pre-entrenado (o simulación de alta calidad si no está disponible).
+      *   *Ventaja:* Capaz de "alucinar" o reconstruir texturas plausibles que los filtros matemáticos no pueden recuperar.
+
+5. MÉTRICAS DE EVALUACIÓN (Módulo: src/metrics.py)
+--------------------------------------------------
+Para evaluar objetivamente la calidad de la restauración:
+
+1.  **PSNR (Peak Signal-to-Noise Ratio):**
+    *   Mide la relación entre el máximo valor posible de la señal y el error introducido.
+    *   Unidad: Decibeles (dB). Mayor es mejor.
+
+2.  **SSIM (Structural Similarity Index):**
+    *   Mide la similitud perceptual (luminancia, contraste, estructura).
+    *   Rango: -1 a 1. 1 es identidad perfecta. Se correlaciona mejor con la visión humana que el PSNR.
+
+6. IMPLEMENTACIÓN TECNOLÓGICA
+-----------------------------
+*   **Lenguaje:** Python 3.9+
+*   **Interfaz Gráfica:** Streamlit (Web App interactiva).
+*   **Librerías Principales:**
+    *   `NumPy`: Cálculo matricial.
+    *   `SciPy`: Procesamiento de señales y FFT.
+    *   `Scikit-Image`: Algoritmos de procesamiento de imágenes.
+    *   `OpenCV (cv2)`: Visión por computador optimizada y manejo de modelos DNN.
+    *   `Matplotlib`: Visualización de gráficos.
+
+7. CONCLUSIONES GENERALES DEL PROYECTO
+--------------------------------------
+1.  **No existe un filtro universal:** La elección del método depende totalmente del tipo de ruido. (Ej: Mediana para S&P, Notch para Periódico).
+2.  **Fourier es insustituible:** Para interferencias periódicas, el dominio de la frecuencia es la única solución viable.
+3.  **IA es el futuro:** Los métodos basados en Deep Learning (DnCNN) superan las limitaciones teóricas de los filtros clásicos, ofreciendo la mejor calidad visual a costa de mayor cómputo.
+4.  **Importancia de la Validación:** El uso de métricas objetivas (PSNR/SSIM) es crucial para validar científicamente los resultados más allá de la percepción subjetiva.
