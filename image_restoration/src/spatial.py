@@ -25,7 +25,18 @@ def apply_median(image, disk_radius=2):
     """
     # Ensure image is in valid range
     image = np.clip(image, 0, 1)
-    result = median(image, disk(disk_radius))
+    
+    if len(image.shape) == 3:
+        # Color image: process each channel independently
+        channels = [image[:,:,i] for i in range(3)]
+        restored_channels = []
+        for ch in channels:
+            restored_channels.append(median(ch, disk(disk_radius)))
+        result = np.stack(restored_channels, axis=2)
+    else:
+        # Grayscale
+        result = median(image, disk(disk_radius))
+        
     return np.clip(result, 0, 1)
 
 def apply_wiener(image, window_size=5):
@@ -185,9 +196,22 @@ def apply_adaptive_median(image, max_window_size=7):
     # Convert to uint8 for processing
     img_uint8 = (image * 255).astype(np.uint8)
     
-    # Adaptive median implementation
-    rows, cols = img_uint8.shape
-    result = img_uint8.copy()
+    if len(img_uint8.shape) == 3:
+        # Color image: process each channel independently
+        channels = cv2.split(img_uint8)
+        restored_channels = []
+        for ch in channels:
+            restored_channels.append(_adaptive_median_2d(ch, max_window_size))
+        result = cv2.merge(restored_channels)
+    else:
+        # Grayscale
+        result = _adaptive_median_2d(img_uint8, max_window_size)
+    
+    return np.clip(result.astype(np.float32) / 255.0, 0, 1)
+
+def _adaptive_median_2d(img, max_window_size):
+    rows, cols = img.shape
+    result = img.copy()
     
     for i in range(rows):
         for j in range(cols):
@@ -200,11 +224,11 @@ def apply_adaptive_median(image, max_window_size=7):
                 j_min = max(0, j - half)
                 j_max = min(cols, j + half + 1)
                 
-                window = img_uint8[i_min:i_max, j_min:j_max]
+                window = img[i_min:i_max, j_min:j_max]
                 z_min = np.min(window)
                 z_max = np.max(window)
                 z_med = np.median(window)
-                z_xy = img_uint8[i, j]
+                z_xy = img[i, j]
                 
                 # Level A
                 if z_min < z_med < z_max:
@@ -219,8 +243,7 @@ def apply_adaptive_median(image, max_window_size=7):
                     
                 if window_size > max_window_size:
                     result[i, j] = z_med
-    
-    return np.clip(result.astype(np.float32) / 255.0, 0, 1)
+    return result
 
 def apply_lee_filter(image, window_size=5):
     """

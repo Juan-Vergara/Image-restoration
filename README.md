@@ -81,9 +81,12 @@ python -m streamlit run image_restoration/app.py
 Proyecto académico - Universidad Nacional de Colombia
 Curso: Teoría de la Información
 
-## 👤 Autor
+## 👥 Autores
 
-Juan Vergara
+**Alejandro Argüello Muñoz**
+- GitHub: [@aarguellom](https://github.com/aarguellom)
+
+**Juan Luis Vergara Novoa**
 - GitHub: [@Juan-Vergara](https://github.com/Juan-Vergara)
 
 ## 🙏 Referencias

@@ -3,17 +3,21 @@ import cv2
 
 def analyze_image_noise(image):
     """
-    Analyzes the image to detect specific noise patterns, particularly periodic noise.
+    Analyzes the image to detect specific noise patterns.
+    Only detects: Periodic, Salt & Pepper, and Gaussian noise.
     
     Args:
         image: Input image (RGB or Grayscale).
         
     Returns:
         dict: A dictionary containing:
-            - 'detected_noise': str (e.g., 'Periodic', 'None')
-            - 'confidence': float (0.0 to 1.0)
-            - 'params': dict (parameters for restoration, e.g., 'notch_centers')
+            - 'detected_noise': str
+            - 'params': dict (parameters for restoration)
     """
+    # Ensure image is float32 for OpenCV compatibility
+    if image.dtype == np.float64:
+        image = image.astype(np.float32)
+
     # Convert to grayscale if needed
     if len(image.shape) == 3:
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -41,10 +45,9 @@ def analyze_image_noise(image):
             continue
         notch_centers.append((r, c))
         
-    if len(notch_centers) > 5: # Lowered threshold for better detection
+    if len(notch_centers) > 5:
         return {
             "detected_noise": "Ruido Periódico",
-            "confidence": 0.9,
             "params": {"notch_centers": notch_centers}
         }
 
@@ -54,38 +57,25 @@ def analyze_image_noise(image):
     n_ones = np.sum(gray >= 0.99)
     sp_ratio = (n_zeros + n_ones) / n_pixels
     
-    if sp_ratio > 0.005: # Lowered threshold (was 0.01)
+    if sp_ratio > 0.005:
         return {
             "detected_noise": "Sal y Pimienta",
-            "confidence": 0.8,
             "params": {"amount": sp_ratio}
         }
 
-    # 3. Blur Detection (Variance of Laplacian)
-    laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-    if laplacian_var < 0.002: # Slightly increased threshold
-        return {
-            "detected_noise": "Desenfoque (Blur)",
-            "confidence": 0.6,
-            "params": {"sigma": 2.0}
-        }
-
-    # 4. Gaussian Noise Estimation
-    # Improved estimation using high-frequency content
-    laplacian = cv2.Laplacian(gray, cv2.CV_64F)
-    # Use MAD (Median Absolute Deviation) for robust estimation
+    # 3. Gaussian Noise (MAD estimation)
+    laplacian = cv2.Laplacian(gray, cv2.CV_32F)
     mad = np.median(np.abs(laplacian - np.median(laplacian)))
-    sigma_est = 1.4826 * mad  # Convert MAD to sigma
+    sigma = 1.4826 * mad
     
-    if sigma_est > 0.015: # Lowered threshold (was 0.02)
+    if sigma > 0.01:
         return {
             "detected_noise": "Ruido Gaussiano",
-            "confidence": 0.7,
-            "params": {"sigma": sigma_est}
+            "params": {"sigma": sigma}
         }
-
+    
+    # No noise detected
     return {
-        "detected_noise": "Ninguno Detectado",
-        "confidence": 0.0,
+        "detected_noise": "Ninguno",
         "params": {}
     }
