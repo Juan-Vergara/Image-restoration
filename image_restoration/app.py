@@ -134,7 +134,8 @@ psf_kernel = None # Para deconvolución
 
 if noise_type == "Ruido Gaussiano":
     sigma = st.sidebar.slider("Sigma (Intensidad)", 0.01, 0.5, 0.1)
-    noisy_img = add_gaussian_noise(img, sigma=sigma)
+    # add_gaussian_noise expects variance (var), not sigma
+    noisy_img = add_gaussian_noise(img, var=sigma**2)
 elif noise_type == "Sal y Pimienta":
     amount = st.sidebar.slider("Cantidad", 0.0, 0.5, 0.05)
     noisy_img = add_salt_pepper_noise(img, amount=amount)
